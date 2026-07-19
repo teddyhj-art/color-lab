@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
-// ── 치평 색채 연구소 v4 ──────────────────────────────────────
-// 탭 구성: ① 색채 배우기 → ② 팔레트 만들기 → ③ 치평 갤러리 → ④ 리히터의 벽
+// ── 치평 색채 연구소 v5 ──────────────────────────────────────
+// 탭 구성: ① 색채 이론 → ② 색채 배우기 → ③ 팔레트 만들기 → ④ 치평 갤러리 → ⑤ 리히터의 벽
 
 const INK = "#1A1A1A";
 const GRAY = "#8B8B85";
 const LINE = "#E6E5E0";
-const ADMIN_PW = "chipy2025";
+const ADMIN_PW = "2026";
 const MAX_SUBMIT = 3;
 
 // ─────────────────── 색 변환 유틸 ───────────────────────────
@@ -94,7 +94,282 @@ const getSubmitCount = (no, nm) => { try { return parseInt(localStorage.getItem(
 const incSubmitCount = (no, nm) => { try { const k = `submit_${no}_${nm}`, c = parseInt(localStorage.getItem(k) || "0", 10); localStorage.setItem(k, String(c + 1)); return c + 1; } catch { return 1; } };
 
 // ════════════════════════════════════════════════════════════
-// ① 색채 배우기 탭 컴포넌트
+// ① 색채 이론 워크시트 탭 컴포넌트
+// ════════════════════════════════════════════════════════════
+function WorksheetTab() {
+  const [openBlanks, setOpenBlanks] = useState({});
+  const [folds, setFolds] = useState({});
+  const mixCmyRef = useRef(null);
+  const mixRgbRef = useRef(null);
+
+  const tb = (id) => setOpenBlanks(prev => ({ ...prev, [id]: !prev[id] }));
+  const tf = (id) => setFolds(prev => ({ ...prev, [id]: !prev[id] }));
+
+  const totalBlanks = 42;
+  const openCount = Object.values(openBlanks).filter(Boolean).length;
+  const pct = Math.round((openCount / totalBlanks) * 100);
+
+  const openAll = () => {
+    const all = {};
+    for (let i = 0; i < totalBlanks; i++) all[i] = true;
+    setOpenBlanks(all);
+  };
+  const closeAll = () => setOpenBlanks({});
+
+  // Canvas 혼합 다이어그램
+  useEffect(() => {
+    function drawMix(canvas, bg, c0, c1, c2, o01, o02, o12, center, labels) {
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      const W = canvas.width, H = canvas.height;
+      ctx.fillStyle = bg;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(0, 0, W, H, 8); else ctx.rect(0, 0, W, H);
+      ctx.fill();
+      [c0, c1, c2].forEach(c => { ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2); ctx.fillStyle = c.col; ctx.fill(); });
+      const img = ctx.getImageData(0, 0, W, H); const d = img.data;
+      const inC = (px, py, c) => (px - c.x) ** 2 + (py - c.y) ** 2 <= c.r * c.r;
+      const hx = h => { const n = parseInt(h.replace("#", ""), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+      const h01 = hx(o01), h02 = hx(o02), h12 = hx(o12), hc = hx(center);
+      for (let py = 0; py < H; py++) {
+        for (let px = 0; px < W; px++) {
+          const i0 = inC(px, py, c0), i1 = inC(px, py, c1), i2 = inC(px, py, c2);
+          const idx = (py * W + px) * 4;
+          let col = null;
+          if (i0 && i1 && i2) col = hc;
+          else if (i0 && i1) col = h01;
+          else if (i0 && i2) col = h02;
+          else if (i1 && i2) col = h12;
+          if (col) { d[idx] = col[0]; d[idx + 1] = col[1]; d[idx + 2] = col[2]; d[idx + 3] = 255; }
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      labels.forEach(({ t, x, y, c, s, w }) => { ctx.font = (w ? "bold " : "") + (s || 10) + "px sans-serif"; ctx.fillStyle = c; ctx.fillText(t, x, y); });
+    }
+    drawMix(mixCmyRef.current, "#ffffff",
+      { x: 90, y: 63, r: 58, col: "#FFFF00" }, { x: 60, y: 117, r: 58, col: "#00FFFF" }, { x: 120, y: 117, r: 58, col: "#FF00FF" },
+      "#00FF00", "#FF0000", "#0000FF", "#000000",
+      [{ t: "Yellow", x: 90, y: 14, c: "#888800", s: 11, w: true }, { t: "Cyan", x: 24, y: 158, c: "#007799", s: 11, w: true }, { t: "Magenta", x: 156, y: 158, c: "#AA0077", s: 11, w: true },
+       { t: "Green", x: 63, y: 82, c: "#fff", s: 9 }, { t: "Red", x: 117, y: 82, c: "#fff", s: 9 }, { t: "Blue", x: 90, y: 135, c: "#fff", s: 9 }, { t: "Black", x: 90, y: 108, c: "#fff", s: 10, w: true }]
+    );
+    drawMix(mixRgbRef.current, "#111111",
+      { x: 90, y: 63, r: 58, col: "#FF0000" }, { x: 60, y: 117, r: 58, col: "#00FF00" }, { x: 120, y: 117, r: 58, col: "#0000FF" },
+      "#FFFF00", "#FF00FF", "#00FFFF", "#FFFFFF",
+      [{ t: "Red", x: 90, y: 14, c: "#FF9999", s: 11, w: true }, { t: "Green", x: 24, y: 158, c: "#99FF99", s: 11, w: true }, { t: "Blue", x: 156, y: 158, c: "#9999FF", s: 11, w: true },
+       { t: "Yellow", x: 63, y: 82, c: "#333", s: 9 }, { t: "Magenta", x: 117, y: 82, c: "#333", s: 9 }, { t: "Cyan", x: 90, y: 135, c: "#333", s: 9 }, { t: "White", x: 90, y: 108, c: "#333", s: 10, w: true }]
+    );
+  }, []);
+
+  // 스타일 헬퍼
+  const S = {
+    ch: { marginBottom: 28 },
+    chTitle: { fontSize: 15, fontWeight: 700, padding: "5px 10px", borderLeft: "4px solid #3B82F6", marginBottom: 12, background: "#fff", borderRadius: "0 8px 8px 0" },
+    card: { background: "#fff", border: `1px solid ${LINE}`, borderRadius: 12, padding: "14px 16px", marginBottom: 10 },
+    foldBtn: (open) => ({ width: "100%", background: open ? "#EFF6FF" : "#F7F7F5", border: `1px solid ${open ? "#93C5FD" : LINE}`, borderRadius: open ? "10px 10px 0 0" : 10, padding: "10px 14px", fontSize: 13.5, fontWeight: 500, color: INK, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: "inherit", marginBottom: open ? 0 : 6 }),
+    foldBody: { background: "#fff", border: `1px solid ${LINE}`, borderTop: "none", borderRadius: "0 0 10px 10px", padding: "12px 16px", marginBottom: 6 },
+    blank: (id, type) => {
+      const isOpen = openBlanks[id];
+      const colors = { default: { bg: "#EFF6FF", border: "#93C5FD", text: "#1D4ED8" }, r: { bg: "#FEF2F2", border: "#FCA5A5", text: "#B91C1C" }, g: { bg: "#F0FDF4", border: "#86EFAC", text: "#15803D" } };
+      const col = colors[type || "default"];
+      return { display: "inline-block", background: col.bg, border: `1px solid ${col.border}`, borderRadius: 5, padding: "1px 10px", fontSize: 13, fontWeight: 700, color: isOpen ? col.text : "transparent", cursor: "pointer", minWidth: 42, textAlign: "center", verticalAlign: "middle", userSelect: "none", transition: "color .15s" };
+    },
+  };
+
+  let bId = 0;
+  const Blank = ({ children, type }) => { const id = bId++; return <span style={S.blank(id, type)} onClick={() => tb(id)}>{children}</span>; };
+  const Fold = ({ fid, label, children }) => (
+    <div style={{ marginBottom: 6 }}>
+      <button style={S.foldBtn(folds[fid])} onClick={() => tf(fid)}>
+        <span>{label}</span><span style={{ fontSize: 11, color: GRAY, display: "inline-block", transform: folds[fid] ? "rotate(180deg)" : "none", transition: "transform .25s" }}>▼</span>
+      </button>
+      {folds[fid] && <div style={S.foldBody}>{children}</div>}
+    </div>
+  );
+
+  return (
+    <div>
+      {/* 헤더 */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 10, marginBottom: 8 }}>
+        <div>
+          <div style={{ fontSize: 11, color: GRAY, letterSpacing: ".1em", marginBottom: 3 }}>치평중학교 미술 · 색채 이론 워크시트</div>
+          <div style={{ fontSize: 20, fontWeight: 700 }}>색이란 무엇인가</div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <button onClick={openAll} style={{ border: "1px solid #3B82F6", background: "#fff", color: "#1D4ED8", borderRadius: 8, padding: "6px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>모든 빈칸 열기</button>
+            <button onClick={closeAll} style={{ border: `1px solid ${LINE}`, background: "#fff", color: GRAY, borderRadius: 8, padding: "6px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>모든 빈칸 닫기</button>
+          </div>
+          <div style={{ fontSize: 11, color: GRAY, marginTop: 4 }}>{openCount} / {totalBlanks} 확인 완료 ({pct}%) &nbsp;|&nbsp; 1번 클릭 → 열기 &nbsp;|&nbsp; 2번 클릭 → 닫기</div>
+        </div>
+      </div>
+      <div style={{ height: 4, background: LINE, borderRadius: 2, marginBottom: 20 }}>
+        <div style={{ height: 4, background: "#3B82F6", borderRadius: 2, width: pct + "%", transition: "width .3s" }} />
+      </div>
+
+      {/* ① 색이란 무엇인가 */}
+      <div style={S.ch}>
+        <div style={S.chTitle}>① 색이란 무엇인가</div>
+        <Fold fid="f1" label="색의 정의 — 빛·물체·관찰자">
+          <p style={{ fontSize: 13, color: GRAY, lineHeight: 1.8, marginBottom: 8 }}>색을 전문적으로 정의할 때는 보통 3가지 요소를 포함해 정의합니다.</p>
+          <div style={{ background: "#EFF6FF", border: "1px solid #93C5FD", borderRadius: 10, padding: "10px 14px", textAlign: "center", fontSize: 13, lineHeight: 1.8, marginBottom: 8 }}>
+            색은 <b>관찰자</b>가 관여해서 대상물체의 특성을 <b>광원</b>으로부터 나온 특정 <b>빛</b>을 통해 느끼게 되는 <b>감각적 이벤트</b>이다
+          </div>
+          <p style={{ fontSize: 13, color: GRAY, lineHeight: 1.8 }}>즉, 색을 이야기할 때 우리는 <b style={{ color: "#1D4ED8" }}>빛 / 물체 / 관찰자</b> 라는 3가지 요소를 고려해야 합니다.</p>
+        </Fold>
+        <Fold fid="f2" label="색은 물체·빛·관찰자에 관한 것">
+          <p style={{ fontSize: 13, color: GRAY, lineHeight: 1.8, marginBottom: 6 }}><b style={{ color: "#1D4ED8" }}>색은 물체에 관한 것</b>입니다. '빨간 사과', '노란 병아리'처럼 우리는 물건을 색으로 표현하곤 하죠.</p>
+          <p style={{ fontSize: 13, color: GRAY, lineHeight: 1.8, marginBottom: 6 }}><b style={{ color: "#1D4ED8" }}>색상은 빛의 특성</b>입니다. 빛이 없으면 아무런 색도 있을 수 없어요.</p>
+          <p style={{ fontSize: 13, color: GRAY, lineHeight: 1.8 }}><b style={{ color: "#1D4ED8" }}>색은 관찰자에 관한 것</b>이기도 합니다. 뇌에 자극을 가하면 물체나 빛은 그대로인데 인식하는 색만 변한답니다.</p>
+        </Fold>
+      </div>
+
+      {/* ② 색의 3요소 */}
+      <div style={S.ch}>
+        <div style={S.chTitle}>② 색의 3요소</div>
+        <div style={S.card}>
+          <p style={{ fontSize: 13.5, color: GRAY, lineHeight: 1.8 }}>색을 구분·분석하는 방법은 3가지를 기준으로 하는데, 그것이 바로 색의 3요소(<Blank type="default">색상</Blank>, <Blank type="r">명도</Blank>, <Blank type="g">채도</Blank>)이다.</p>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, margin: "10px 0" }}>
+          {[
+            { title: "색상 (Hue)", color: "#1D4ED8", bg: "linear-gradient(to right,#FF0000,#FFFF00,#00CC00,#0000FF,#FF00FF,#FF0000)", desc: <span>색깔 그 자체. 색을 <Blank>구분</Blank>하는 속성.<br/>유채색 = <Blank>색상이 있는</Blank> 색<br/>무채색 = <Blank>흰·회·검</Blank>처럼 색상 없는 색</span> },
+            { title: "명도 (Brightness)", color: "#B91C1C", bg: "linear-gradient(to right,#000,#888,#fff)", desc: <span>색의 <Blank type="r">밝기</Blank>.<br/>빛 세기 강할수록 명도 <Blank type="r">높고</Blank><br/>약할수록 명도 <Blank type="r">낮아짐</Blank></span> },
+            { title: "채도 (Saturation)", color: "#15803D", bg: "linear-gradient(to right,#888,#FF2222)", desc: <span>색의 <Blank type="g">순도·선명도</Blank>.<br/>다른 색이 섞일수록 채도 <Blank type="g">낮아짐</Blank><br/>최종 0이 되면 <Blank type="g">무채색</Blank></span> },
+          ].map(({ title, color, bg, desc }) => (
+            <div key={title} style={{ borderRadius: 10, border: `1px solid ${LINE}`, padding: "12px", textAlign: "center", background: "#fff" }}>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color, marginBottom: 6 }}>{title}</div>
+              <div style={{ height: 36, borderRadius: 7, background: bg, margin: "5px 0", border: title.includes("명도") ? `1px solid ${LINE}` : "none" }} />
+              <div style={{ fontSize: 11.5, color: GRAY, lineHeight: 1.6 }}>{desc}</div>
+            </div>
+          ))}
+        </div>
+        <Fold fid="f3" label="무채색과 유채색 자세히 보기">
+          <p style={{ fontSize: 13, color: GRAY, lineHeight: 1.8, marginBottom: 4 }}><b>무채색</b>: 흰색·회색·검정. 빛의 밝기에 따라 결정되는 색으로 색상이 없다.</p>
+          <p style={{ fontSize: 13, color: GRAY, lineHeight: 1.8, marginBottom: 4 }}><b>유채색</b>: 색상이 있는 색깔. 기본적으로 빨강(R)·초록(G)·파랑(B)가 색의 삼원색이다.</p>
+          <p style={{ fontSize: 13, color: "#B91C1C", lineHeight: 1.8, marginBottom: 2 }}>물감은 <b>감산혼합</b> — 섞을수록 '채도'가 낮아진다.</p>
+          <p style={{ fontSize: 13, color: "#15803D", lineHeight: 1.8 }}>빛은 <b>가산혼합</b> — 섞을수록 '명도'가 높아진다.</p>
+        </Fold>
+      </div>
+
+      {/* ③ 빛 vs 물감 혼합 */}
+      <div style={S.ch}>
+        <div style={S.chTitle}>③ 빛의 혼합 vs 물감의 혼합</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, margin: "10px 0" }}>
+          {[
+            { id: "cmy", ref: mixCmyRef, head: "감산혼합 표 (CMYK)", headBg: "#222", dots: [["#00FFFF","C"],["#FF00FF","M"],["#FFFF00 border:1px solid #ccc","Y"]], result: "Black", blanks: [["r","시안(C)"],["r","마젠타(M)"],["r","노랑(Y)"],["r","검정(Black)"],["r","어두워진다"]], usage: "인쇄·프린터" },
+            { id: "rgb", ref: mixRgbRef, head: "가산혼합 표 (RGB)", headBg: "#111", dots: [["#FF0000","R"],["#00FF00","G"],["#0000FF","B"]], result: "White", blanks: [["g","빨강(R)"],["g","초록(G)"],["g","파랑(B)"],["g","흰색(White)"],["g","밝아진다"]], usage: "모니터·TV·스마트폰" },
+          ].map(({ id, ref, head, headBg, dots, result, blanks, usage }) => (
+            <div key={id} style={{ borderRadius: 10, border: `1px solid ${LINE}`, overflow: "hidden" }}>
+              <div style={{ padding: "8px 12px", fontSize: 13, fontWeight: 700, color: "#fff", textAlign: "center", background: headBg }}>{head}</div>
+              <div style={{ padding: "12px 12px 14px", background: "#fff" }}>
+                <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
+                  <canvas ref={ref} width={180} height={180} style={{ borderRadius: 8 }} />
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: GRAY, marginBottom: 6 }}>
+                  {dots.map(([col, label]) => <span key={label} style={{ display: "flex", alignItems: "center", gap: 3 }}><span style={{ width: 9, height: 9, borderRadius: "50%", background: col.split(" ")[0], border: col.includes("border") ? "1px solid #ccc" : "none", display: "inline-block" }} />{label}</span>)}
+                  <span>→ 모두 섞으면 <b>{result}</b></span>
+                </div>
+                <div style={{ fontSize: 12, color: GRAY, lineHeight: 1.7 }}>
+                  3원색: <Blank type={blanks[0][0]}>{blanks[0][1]}</Blank> <Blank type={blanks[1][0]}>{blanks[1][1]}</Blank> <Blank type={blanks[2][0]}>{blanks[2][1]}</Blank><br />
+                  모두 섞으면 → <Blank type={blanks[3][0]}>{blanks[3][1]}</Blank><br />
+                  섞을수록 <Blank type={blanks[4][0]}>{blanks[4][1]}</Blank> · 사용: <b>{usage}</b>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <Fold fid="f4" label="물감과 빛이 다른 이유 자세히 보기">
+          <p style={{ fontSize: 13, color: GRAY, lineHeight: 1.8, marginBottom: 4 }}>물감과 빛이 성질이 다른 것은 애초에 서로 완전히 다른 물질을 가지고 분석하기 때문이다.</p>
+          <p style={{ fontSize: 13, color: "#B91C1C", lineHeight: 1.8, marginBottom: 2 }}><b>물감 = 감산혼합</b>: 섞을수록 색깔이 변하면서 동시에 '채도'가 낮아진다.</p>
+          <p style={{ fontSize: 13, color: "#15803D", lineHeight: 1.8 }}><b>빛 = 가산혼합</b>: 섞을수록 색깔이 변하면서 동시에 '명도'가 높아진다.</p>
+        </Fold>
+      </div>
+
+      {/* ④ 색의 대비 */}
+      <div style={S.ch}>
+        <div style={S.chTitle}>④ 색의 대비</div>
+        <div style={S.card}>
+          <p style={{ fontSize: 13.5, color: GRAY, lineHeight: 1.8, marginBottom: 4 }}>색의 대비는 <b>두 가지 이상의 색을 인접하게 배치하거나 연속하여 볼 때, 서로의 영향을 받아 실제 색보다 훨씬 강조되어 다르게 보이는 시각적 현상</b>입니다.</p>
+          <p style={{ fontSize: 12.5, color: GRAY, lineHeight: 1.8 }}>이는 주로 우리 눈의 <b>망막</b>과 뇌의 <b>신경 처리 과정</b>에서 발생하는 <b>생리적 착시 현상</b>입니다.</p>
+        </div>
+        {[
+          { label: "명도 대비", bg: "#444", def: <span>밝고 어두운 색이 인접했을 때, 밝은 색은 더 <Blank>밝게</Blank>, 어두운 색은 더 <Blank>어둡게</Blank> 보이는 현상.</span>, demo: [["#111","#888"],["#eee","#888"]], note: "같은 회색인데 왼쪽이 더 밝아 보인다" },
+          { label: "색상 대비", bg: "#CC5500", def: <span>인접한 두 색의 영향으로 본래의 <Blank>색상</Blank>과 <Blank>달라져</Blank> 보이는 현상.</span>, demo: [["#CC0000","#FFA500"],["#FFFF00","#FFA500"]], note: "같은 귤색 → 빨강 위엔 노랗게, 노랑 위엔 주황으로" },
+          { label: "채도 대비", bg: "#337700", def: <span>채도 높은 색은 더 <Blank type="g">선명해</Blank> 보이고, 낮은 색은 더 <Blank type="g">탁해</Blank> 보이는 현상.</span>, demo: [["#FFCC00","#CC6600"],["#AAAAAA","#CC6600"]], note: "회색 바탕 위에서 더 선명해 보인다" },
+          { label: "보색 대비", bg: "#0055AA", def: <span>보색 관계인 두 색을 나란히 배치 시 <Blank>채도</Blank>가 높아져 더 <Blank>강렬하고 선명하게</Blank> 보이는 현상.</span>, demo: [["#00AACC","#FF0000"],["#FFFF00","#8800FF"]], note: "보색 배치 시 서로 더 강렬해 보인다" },
+          { label: "한난 대비", bg: "#7700AA", def: <span><Blank>차가운</Blank> 색 옆에서는 더 차갑게, <Blank>따뜻한</Blank> 색 옆에서는 더 따뜻하게 보이는 현상.</span>, demo: [["#00AAFF","#FF4400"],["#FFDD00","#00AA44"]], note: "파랑 위의 빨강은 더 뜨겁게 보인다" },
+          { label: "면적 대비", bg: "#886600", def: <span>동일한 색이라도 <Blank>면적의 크기</Blank>에 따라 명도와 채도가 달라져 보이는 현상.</span>, demo: null, note2: "큰 면적이 더 밝고 선명해 보인다 / 연변 대비: 경계부분이 더 대비 강해 보임" },
+        ].map(({ label, bg, def, demo, note, note2 }) => (
+          <div key={label} style={{ borderRadius: 10, border: `1px solid ${LINE}`, background: "#fff", overflow: "hidden", display: "flex", marginBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minWidth: 70, padding: "10px 8px", fontSize: 12, fontWeight: 700, color: "#fff", flexShrink: 0, textAlign: "center", lineHeight: 1.4, background: bg }}>{label}</div>
+            <div style={{ padding: "10px 14px", flex: 1 }}>
+              <div style={{ fontSize: 12.5, color: INK, lineHeight: 1.65, marginBottom: 6 }}>{def}</div>
+              {demo ? (
+                <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+                  {demo.map(([sq, inner], i) => (
+                    <div key={i} style={{ width: 30, height: 30, borderRadius: 4, background: sq, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <div style={{ width: 14, height: 14, borderRadius: 2, background: inner }} />
+                    </div>
+                  ))}
+                  <span style={{ fontSize: 10.5, color: GRAY }}>{note}</span>
+                </div>
+              ) : (
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <div style={{ width: 44, height: 26, background: "#FF6644", borderRadius: 3, flexShrink: 0 }} />
+                  <span style={{ fontSize: 10, color: GRAY }}>vs</span>
+                  <div style={{ width: 18, height: 18, background: "#FF6644", borderRadius: 3, flexShrink: 0 }} />
+                  <span style={{ fontSize: 10.5, color: GRAY }}>{note2}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+        <Fold fid="f5" label="색의 관계 — 보색·반대색·유사색">
+          <p style={{ fontSize: 13, color: GRAY, lineHeight: 1.8, marginBottom: 4 }}><b>보색:</b> 색상환에서 정반대에 위치한 두 색. 섞으면 바로 무채색으로 변하는 색.</p>
+          <p style={{ fontSize: 13, color: GRAY, lineHeight: 1.8, marginBottom: 4 }}><b>반대색:</b> 색상환에서 거리가 먼 색.</p>
+          <p style={{ fontSize: 13, color: GRAY, lineHeight: 1.8, marginBottom: 6 }}><b>유사색:</b> 색상환에서 가까이 붙어있는 색상들.</p>
+          <p style={{ fontSize: 13, color: "#B91C1C", fontWeight: 700, lineHeight: 1.7 }}>결론: 디자인에서는 3개 정도의 유사색으로 통일성을 만들고, 강조 문구는 보색·명도·채도 대비를 이용한다.</p>
+        </Fold>
+      </div>
+
+      {/* ⑤ 색상의 감정 */}
+      <div style={S.ch}>
+        <div style={S.chTitle}>⑤ 색상의 감정·이미지</div>
+        <Fold fid="f6" label="색상별 감정·연상 이미지 보기">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(86px,1fr))", gap: 6, margin: "8px 0" }}>
+            {[["#BB0000","빨강","정열·흥분·피·위험"],["#EE6600","주황","온정·풍부·활기"],["#BBAA00","노랑","희망·명랑·질투·발전","#222"],["#005500","초록","평화·안전·성장·순정"],["#003399","파랑","침정·냉정·숭고·고집"],["#440066","보라","창조·우아·예술·신비"]].map(([c,n,d,tc])=>(
+              <div key={n} style={{ borderRadius: 8, height: 50, background: c, display: "flex", alignItems: "flex-end", padding: "4px 6px", fontSize: 11, fontWeight: 700, color: tc || "rgba(255,255,255,.92)" }}>
+                {n}<br/><span style={{ fontSize: 9.5, fontWeight: 400, opacity: .85 }}>{d}</span>
+              </div>
+            ))}
+          </div>
+        </Fold>
+      </div>
+
+      {/* ⑥ 최종 정리 퀴즈 */}
+      <div style={S.ch}>
+        <div style={S.chTitle}>⑥ 최종 정리 퀴즈</div>
+        <div style={S.card}>
+          {[
+            <span>1. 색의 3요소는 <Blank>색상</Blank>, <Blank type="r">명도</Blank>, <Blank type="g">채도</Blank> 이다.</span>,
+            <span>2. 색상이 없는 색(흰색·회색·검정)을 <Blank>무채색</Blank>이라고 한다.</span>,
+            <span>3. 빛의 3원색은 <Blank type="g">RGB</Blank>이며, 모두 섞으면 <Blank type="g">흰색</Blank>이 된다. → <Blank type="g">가산</Blank>혼합</span>,
+            <span>4. 물감의 3원색은 <Blank type="r">CMY</Blank>이며, 모두 섞으면 <Blank type="r">검정</Blank>이 된다. → <Blank type="r">감산</Blank>혼합</span>,
+            <span>5. 어두운 바탕 위 포인트가 더 밝아 보이는 현상은 <Blank>명도 대비</Blank>이다.</span>,
+            <span>6. 보색 관계의 두 색을 나란히 놓으면 더욱 <Blank>선명하고 화려해</Blank> 보인다.</span>,
+            <span>7. 물감을 섞을수록 채도가 낮아지는 혼합은 <Blank type="r">감산혼합</Blank>이다.</span>,
+            <span>8. 색상환에서 정반대 두 색을 <Blank>보색</Blank>, 가까이 있는 색을 <Blank>유사색</Blank>이라 한다.</span>,
+          ].map((q, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 6, margin: "6px 0", fontSize: 12.5, color: GRAY, flexWrap: "wrap" }}>{q}</div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+// ② 색채 배우기 탭 컴포넌트
 // ════════════════════════════════════════════════════════════
 function LearnTab() {
   const [colorN, setColorN] = useState(3);
@@ -513,7 +788,7 @@ function WallTab({ allChips, wallSeed, setWallSeed }) {
 // 메인 App
 // ════════════════════════════════════════════════════════════
 export default function App() {
-  const [tab, setTab] = useState("learn");
+  const [tab, setTab] = useState("worksheet");
   const [mode, setMode] = useState("custom");
   const [hsvs, setHsvs] = useState(() =>
     ["#F24B78", "#038C7E", "#00A583", "#80C0BF", "#F8CEB8"].map((h) => hexToHsv(h))
@@ -703,16 +978,20 @@ export default function App() {
         </div>
 
         <nav style={{ borderBottom: `1px solid ${LINE}`, marginTop: 20 }}>
-          {tabBtn("learn", "① 색채 배우기")}
-          {tabBtn("make", "② 팔레트 만들기")}
-          {tabBtn("gallery", `③ 치평 갤러리${palettes.length ? ` (${palettes.length})` : ""}`)}
-          {tabBtn("wall", "④ 리히터의 벽")}
+          {tabBtn("worksheet", "① 색채 이론")}
+          {tabBtn("learn", "② 색채 실습")}
+          {tabBtn("make", "③ 팔레트 만들기")}
+          {tabBtn("gallery", `④ 치평 갤러리${palettes.length ? ` (${palettes.length})` : ""}`)}
+          {tabBtn("wall", "⑤ 리히터의 벽")}
         </nav>
       </header>
 
       <main style={{ maxWidth: 1080, margin: "0 auto", padding: "28px 20px 80px" }}>
 
-        {/* ① 색채 배우기 */}
+        {/* ① 색채 이론 워크시트 */}
+        {tab === "worksheet" && <WorksheetTab />}
+
+        {/* ② 색채 실습 */}
         {tab === "learn" && <LearnTab />}
 
         {/* ② 팔레트 만들기 */}
