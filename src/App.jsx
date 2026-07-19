@@ -1,3 +1,4 @@
+import { supabase } from './supabase.js'
 import { useState, useEffect, useRef, useCallback } from "react";
 
 // ── 치평 색채 연구소 v2 ─────────────────────────────────────
@@ -222,19 +223,11 @@ export default function App() {
   // ---------- 공유 저장소 ----------
   const loadPalettes = useCallback(async () => {
     setLoading(true);
-    try {
-      const listed = await window.storage.list("palette:", true);
-      const keys = listed?.keys || [];
-      const results = [];
-      for (const k of keys) {
-        try {
-          const r = await window.storage.get(k.key || k, true);
-          if (r?.value) results.push({ key: k.key || k, ...JSON.parse(r.value) });
-        } catch (e) { /* skip */ }
-      }
-      results.sort((a, b) => (b.ts || 0) - (a.ts || 0));
-      setPalettes(results);
-    } catch (e) { setPalettes([]); }
+    const { data, error } = await supabase
+      .from('palettes')
+      .select('*')
+      .order('created_at', { ascending: false });
+    setPalettes(error ? [] : data.map(p => ({ ...p, key: p.id })));
     setLoading(false);
   }, []);
 
@@ -249,9 +242,14 @@ export default function App() {
         name: name.trim(), klass: klass.trim(), title: paletteName.trim(),
         harmony: HARMONIES[mode].label, colors: hexes, ts: Date.now(),
       };
-      const key = `palette:${entry.ts}_${Math.random().toString(36).slice(2, 7)}`;
-      const ok = await window.storage.set(key, JSON.stringify(entry), true);
-      if (!ok) throw new Error("save failed");
+      const { error } = await supabase.from('palettes').insert({
+        name: entry.name,
+        klass: entry.klass,
+        title: entry.title,
+        harmony: entry.harmony,
+        colors: entry.colors,
+      });
+      if (error) throw error;
       showToast("갤러리에 전시되었어요 🎨");
       await loadPalettes();
       setTab("gallery");
